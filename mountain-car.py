@@ -2,7 +2,8 @@
 Author: Jack Geissinger
 Date: October 15, 2018
 
-Reference: Reinforcement learning: An introduction by RS Sutton, AG Barto, ch. 10.1, p. 198
+References: [1] Reinforcement learning: An introduction by RS Sutton, AG Barto, ch. 10.1, p. 198
+            [2] R Sutton, "Generalization in Reinforcement Learning: Successful Examples Using Sparse Coarse Coding", NIPS 1996.
 '''
 
 import gym
