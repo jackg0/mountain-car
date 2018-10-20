@@ -9,60 +9,104 @@ References: [1] Reinforcement learning: An introduction by RS Sutton, AG Barto, 
 import gym
 import numpy as np
 import math
+from tiles3 import *
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
-x = np.zeros((64, 64))
-w = np.zeros((64, 64))
+'''
+Initialize tile vector x and weight vector w, and iht for tiling.
+'''
+x = np.zeros((4096,))
+w = np.zeros((4096,))
+iht = IHT(4096)
 
-alpha = 0.5
+'''
+Initialize vector for plotting weights
+'''
+X, Y = np.meshgrid(range(64), range(64))
+hf = plt.figure()
+ha = hf.add_subplot(111, projection='3d')
+
+'''
+Initialize constants used in algorithm.
+alpha is the learning rate, gamma is the discount factor.
+'''
+alpha = 0.01
 gamma = 0.5
 
+'''
+Initialize bounds of position and velocity.
+'''
 min_position, max_position = -1.2, 0.6
 max_speed = 0.07
 
-def decode(state):
+'''
+decode takes in a state and turns in into indices which will modify x
+'''
+def decode(state, action):
     pos = state[0]
     vel = state[1]
 
-    i = int(64*pos//(max_position - min_position))
-    j = int(64*vel//(max_speed + max_speed))
+    pos_scale = 8*pos//(max_position - min_position)
+    vel_scale = 8*vel//(max_speed + max_speed)
 
-    return (i, j)
+    indices = tiles(iht, 8, [pos_scale, vel_scale], [action])
 
+    return indices
+
+'''
+eps-greedy chooses the action which results in the maximum weight
+'''
 def eps_greedy(state):
-
+    # init an array to store optional indices for greedy selection
     options = []
+    # loop through possible actions to compare them all
     for possible_action in range(3):
-        position, velocity = state
-        velocity += (possible_action-1)*0.001 + math.cos(3*position)*(-0.0025)
-        velocity = np.clip(velocity, -max_speed, max_speed)
-        position += velocity
-        position = np.clip(position, min_position, max_position)
-        if (position==min_position and velocity<0): velocity = 0
-        s_p = decode([position, velocity])
-        options.append(s_p)
-    values = [w[s_p[0], s_p[1]] for s_p in options]
+        # possible actions are [-1, 0, 1], we want to get indices for each
+        indices = decode(state, possible_action-1)
+        # add indices to our options
+        options.append(indices)
+    # make an array of the approximate value function values to choose from
+    values = [sum(w[indices]) for indices in options]
+    # make a choice, choosing the max value
     choice = values.index(max(values))
-    s_p = options[choice]
+    # get the best set of indices
+    bestIndices = options[choice]
+    # get the best action
     choices = [0, 1, 2]
     action = choices[choice]
-    return s_p, action
+    return bestIndices, action
 
+'''
+Actual algorithm implementation
+'''
 env = gym.make('MountainCar-v0').env
 for i_episode in range(1000):
     observation = env.reset()
-    s_p, action = eps_greedy(observation)
-    for t in range(1000):
-        env.render()
+    indices, action = eps_greedy(observation)
+    x = np.zeros((4096,))
+    x[indices] = 1
+    for t in range(500):
+        if i_episode > 500:
+            env.render()
         observation, reward, done, info = env.step(action)
-        x = np.zeros((64, 64))
-        (i, j) = decode(observation)
-        x[i,j] = 1
+
         if done:
-            w = w + alpha*(reward - w[i,j])*x
+            w = w + alpha*(reward - sum(w[indices]))*x
             print("woohoooo!")
+            print("Finished in {} timesteps".format(t+1))
             break
 
-        s_p, action = eps_greedy(observation)
+        old_indices = indices
+        indices, action = eps_greedy(observation)
+        #print("Here are the indices -> {} and the action -> {}".format(indices, action)
 
-        w = w + alpha*(reward + gamma*w[s_p[0],s_p[1]] - w[i,j])*x
+        w = w + alpha*(reward + gamma*sum(w[indices]) - sum(w[old_indices]))*x
+
+        x = np.zeros((4096,))
+        x[indices] = 1
+
     print("Finished episode {}".format(i_episode+1))
+
+#ha.plot_surface(X, Y, w)
+#plt.savefig('sarsa-weights_episode-{}.png'.format(i_episode+1))
